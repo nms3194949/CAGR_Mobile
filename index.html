@@ -2,156 +2,296 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>雙贏策略｜手機版配息試算＋投組分析</title>
 <style>
-:root{--deep:#0A1221;--gold:#C9A227;--gold-soft:#E9D18A;--card:#0C152A;--pos:#39C27A;--neg:#E25A5A;--field-bg:#101b33;--input-bg:#071226;--line:rgba(233,209,138,.25);}
-html,body{margin:0;background:var(--deep);color:#fff;font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;}
-.wrap{max-width:540px;margin:0 auto;padding:10px;}
-.tab{padding:10px 14px;border-radius:10px;border:1px solid rgba(201,162,39,.35);background:rgba(12,21,42,.8);color:#E9D18A;cursor:pointer;font-weight:700;}
-.tab[aria-selected="true"]{background:linear-gradient(90deg,var(--gold),var(--gold-soft));color:#0A1221;}
-.tabs{display:flex;gap:6px;justify-content:center;margin:10px 0;}
-.btn{padding:8px 12px;border-radius:8px;border:0;background:linear-gradient(90deg,var(--gold),var(--gold-soft));color:#0A1221;font-weight:700;}
-.field{margin-bottom:10px;}
-label{font-size:13px;color:#E9D18A;}
-.control{width:100%;height:40px;border-radius:8px;border:1px solid rgba(233,209,138,.12);background:var(--input-bg);color:#fff;font-size:16px;padding:0 10px;}
-table{width:100%;border-collapse:collapse;margin-top:10px;}
-th,td{padding:8px 10px;text-align:left;font-size:14px;}
-th{color:var(--gold-soft);border-bottom:2px solid rgba(201,162,39,.8);}
-td{border-bottom:1px solid var(--line);}
-.pos{color:var(--pos);}
-.neg{color:var(--neg);}
-.gold{color:var(--gold);}
-.em{font-weight:700;}
-.tabpanel{display:none;}
-.tabpanel.active{display:block;}
+:root{--deep:#0A1221;--gold:#C9A227;--gold-soft:#E9D18A;--card:#0C152A;--pos:#39C27A;--neg:#E25A5A;--field:#101b33;--input:#071226;--line:rgba(233,209,138,.25);}
+html,body{margin:0;background:var(--deep);color:#fff;font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif}
+.wrap{max-width:540px;margin:0 auto;padding:12px 12px 84px}
+.tabs{display:flex;gap:8px;justify-content:center;margin:10px 0}
+.tab{flex:1;padding:10px;border-radius:10px;border:1px solid rgba(201,162,39,.35);background:#0f1830;color:#E9D18A;font-weight:700}
+.tab[aria-selected="true"]{background:linear-gradient(90deg,var(--gold),var(--gold-soft));color:#0A1221;border-color:transparent}
+.field{margin-bottom:10px}
+label{display:block;font-size:13px;color:#E9D18A;margin-bottom:6px}
+.control{width:100%;height:42px;border-radius:9px;border:1px solid rgba(233,209,138,.12);background:var(--input);color:#fff;font-size:15px;padding:0 10px}
+table{width:100%;border-collapse:collapse;margin-top:10px}
+th,td{padding:9px 10px;text-align:left;font-size:14px;white-space:nowrap}
+th{color:var(--gold-soft);border-bottom:2px solid rgba(201,162,39,.8)}
+td{border-bottom:1px solid var(--line)}
+.pos{color:var(--pos);font-weight:700}
+.neg{color:var(--neg);font-weight:700}
+.gold{color:var(--gold);font-weight:700}
+.em{font-weight:700}
+.tabpanel{display:none}
+.tabpanel.active{display:block}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.btn{flex:1;padding:10px;border:0;border-radius:10px;background:linear-gradient(90deg,var(--gold),var(--gold-soft));color:#0A1221;font-weight:700}
+.note{color:#b9c2d5;font-size:12px;margin-top:6px}
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid rgba(201,162,39,.25);border-radius:10px;background:var(--card)}
 </style>
 </head>
 <body>
 <div class="wrap">
 
-  <div class="tabs">
+  <div class="tabs" role="tablist">
     <button class="tab" id="tab-cash" aria-selected="true">每月配息</button>
     <button class="tab" id="tab-portfolio" aria-selected="false">投組分析</button>
   </div>
 
-  <!-- 每月配息試算 -->
-  <section class="tabpanel active" id="panel-cash">
+  <!-- 每月配息 -->
+  <section class="tabpanel active" id="panel-cash" role="tabpanel" aria-labelledby="tab-cash">
     <div class="field"><label>投入本金（$）</label><input id="principal" type="number" class="control" value="1000000"></div>
     <div class="field"><label>融資金額（$）</label><input id="loan" type="number" class="control" value="1500000"></div>
-    <div class="field"><label>年化配息率（%）</label><input id="rate" type="number" class="control" value="10.0"></div>
-    <div class="field"><label>融資年利率（%）</label><input id="loanRate" type="number" class="control" value="4.0"></div>
+    <div class="field"><label>年化配息率（%）</label><input id="rate" type="number" class="control" value="10.0" step="0.01"></div>
+    <div class="field"><label>融資年利率（%）</label><input id="loanRate" type="number" class="control" value="4.0" step="0.01"></div>
 
-    <table>
-      <tbody>
-        <tr><td>投入本金</td><td id="vPrincipal">—</td></tr>
-        <tr><td>融資金額</td><td id="vLoan">—</td></tr>
-        <tr><td>總投入</td><td id="vTotal" class="em">—</td></tr>
-        <tr><td>年化配息率</td><td id="vRate">—</td></tr>
-        <tr><td>每月配息</td><td id="vMonthlyDiv" class="pos">—</td></tr>
-        <tr><td>每月利息</td><td id="vMonthlyInt" class="neg">—</td></tr>
-        <tr><td>每月淨現金流</td><td id="vMonthlyNet" class="em">—</td></tr>
-        <tr><td>預估報酬率（含息）</td><td id="vEstReturn" class="gold">—</td></tr>
-      </tbody>
-    </table>
+    <div class="table-wrap">
+      <table>
+        <tbody>
+          <tr><td>投入本金</td><td id="vPrincipal">—</td></tr>
+          <tr><td>融資金額</td><td id="vLoan">—</td></tr>
+          <tr><td>總投入</td><td id="vTotal" class="em">—</td></tr>
+          <tr><td>年化配息率</td><td id="vRate">—</td></tr>
+          <tr><td>每月配息</td><td id="vMonthlyDiv" class="pos">—</td></tr>
+          <tr><td>每月利息</td><td id="vMonthlyInt" class="neg">—</td></tr>
+          <tr><td>每月淨現金流</td><td id="vMonthlyNet" class="em">—</td></tr>
+          <tr><td>預估報酬率（含息）</td><td id="vEstReturn" class="gold">—</td></tr>
+        </tbody>
+      </table>
+    </div>
   </section>
 
   <!-- 投組分析 -->
-  <section class="tabpanel" id="panel-portfolio">
-    <table id="fundInputTable">
-      <thead><tr><th>基金</th><th>1年%</th><th>3年%</th><th>5年%</th><th>配息%</th><th>比重%</th></tr></thead>
-      <tbody>
-        <tr><td><input class="control name" placeholder="基金A"></td><td><input class="control fin r1"></td><td><input class="control fin r3"></td><td><input class="control fin r5"></td><td><input class="control fin dy"></td><td><input class="control fin wt"></td></tr>
-        <tr><td><input class="control name" placeholder="基金B"></td><td><input class="control fin r1"></td><td><input class="control fin r3"></td><td><input class="control fin r5"></td><td><input class="control fin dy"></td><td><input class="control fin wt"></td></tr>
-        <tr><td><input class="control name" placeholder="基金C"></td><td><input class="control fin r1"></td><td><input class="control fin r3"></td><td><input class="control fin r5"></td><td><input class="control fin dy"></td><td><input class="control fin wt"></td></tr>
-        <tr><td><input class="control name" placeholder="基金D"></td><td><input class="control fin r1"></td><td><input class="control fin r3"></td><td><input class="control fin r5"></td><td><input class="control fin dy"></td><td><input class="control fin wt"></td></tr>
-        <tr><td><input class="control name" placeholder="基金E"></td><td><input class="control fin r1"></td><td><input class="control fin r3"></td><td><input class="control fin r5"></td><td><input class="control fin dy"></td><td><input class="control fin wt"></td></tr>
-      </tbody>
-    </table>
+  <section class="tabpanel" id="panel-portfolio" role="tabpanel" aria-labelledby="tab-portfolio">
 
-    <table style="margin-top:14px;">
-      <thead><tr><th>指標</th><th>1年</th><th>3年</th><th>5年</th></tr></thead>
-      <tbody>
-        <tr><td>含息報酬率</td><td id="pf_cagr1" class="gold">—</td><td id="pf_cagr3" class="gold">—</td><td id="pf_cagr5" class="gold">—</td></tr>
-        <tr><td>配息率</td><td id="pf_div1" class="pos">—</td><td id="pf_div3" class="pos">—</td><td id="pf_div5" class="pos">—</td></tr>
-        <tr><td>資本成長率</td><td id="pf_cap1" class="em">—</td><td id="pf_cap3" class="em">—</td><td id="pf_cap5" class="em">—</td></tr>
-      </tbody>
-    </table>
+    <!-- 一鍵帶入 + Excel -->
+    <div class="field">
+      <label>常用基金清單</label>
+      <select id="presetSelect" class="control">
+        <option value="">— 選擇常用基金 —</option>
+      </select>
+    </div>
+    <div class="actions" style="margin-bottom:8px">
+      <button class="btn" id="applyPresetBtn">帶入至下一個空列</button>
+      <button class="btn" id="btnExportXlsx">匯出 Excel</button>
+      <button class="btn" id="btnImportXlsx">匯入 Excel</button>
+      <input type="file" id="importXlsx" accept=".xlsx,.xls" style="display:none" />
+    </div>
+    <div class="note">Excel 欄位：基金名稱、近1年%、近3年累積%、近5年累積%、配息率%。<br>數字/純數字字串一律 ×100；結尾含「%」維持原值。</div>
+
+    <!-- A~E 輸入表（靜態五列） -->
+    <div class="table-wrap" style="margin-top:10px">
+      <table id="fundInputTable">
+        <thead>
+          <tr><th>基金名稱</th><th>近1年%</th><th>近3年%</th><th>近5年%</th><th>配息%</th><th>比重%</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><input class="control name" placeholder="基金A"></td><td><input class="control fin r1" type="number" step="0.01"></td><td><input class="control fin r3" type="number" step="0.01"></td><td><input class="control fin r5" type="number" step="0.01"></td><td><input class="control fin dy" type="number" step="0.01"></td><td><input class="control fin wt" type="number" step="0.01"></td></tr>
+          <tr><td><input class="control name" placeholder="基金B"></td><td><input class="control fin r1" type="number" step="0.01"></td><td><input class="control fin r3" type="number" step="0.01"></td><td><input class="control fin r5" type="number" step="0.01"></td><td><input class="control fin dy" type="number" step="0.01"></td><td><input class="control fin wt" type="number" step="0.01"></td></tr>
+          <tr><td><input class="control name" placeholder="基金C"></td><td><input class="control fin r1" type="number" step="0.01"></td><td><input class="control fin r3" type="number" step="0.01"></td><td><input class="control fin r5" type="number" step="0.01"></td><td><input class="control fin dy" type="number" step="0.01"></td><td><input class="control fin wt" type="number" step="0.01"></td></tr>
+          <tr><td><input class="control name" placeholder="基金D"></td><td><input class="control fin r1" type="number" step="0.01"></td><td><input class="control fin r3" type="number" step="0.01"></td><td><input class="control fin r5" type="number" step="0.01"></td><td><input class="control fin dy" type="number" step="0.01"></td><td><input class="control fin wt" type="number" step="0.01"></td></tr>
+          <tr><td><input class="control name" placeholder="基金E"></td><td><input class="control fin r1" type="number" step="0.01"></td><td><input class="control fin r3" type="number" step="0.01"></td><td><input class="control fin r5" type="number" step="0.01"></td><td><input class="control fin dy" type="number" step="0.01"></td><td><input class="control fin wt" type="number" step="0.01"></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 投組指標 -->
+    <div class="table-wrap" style="margin-top:12px">
+      <table>
+        <thead><tr><th>投組指標（加權年化）</th><th>1年</th><th>3年</th><th>5年</th></tr></thead>
+        <tbody>
+          <tr><td>含息報酬率（CAGR）</td><td id="pf_cagr1" class="gold">—</td><td id="pf_cagr3" class="gold">—</td><td id="pf_cagr5" class="gold">—</td></tr>
+          <tr><td>配息率（加權）</td><td id="pf_div1" class="pos">—</td><td id="pf_div3" class="pos">—</td><td id="pf_div5" class="pos">—</td></tr>
+          <tr><td>資本成長率（含息−配息）</td><td id="pf_cap1" class="em">—</td><td id="pf_cap3" class="em">—</td><td id="pf_cap5" class="em">—</td></tr>
+        </tbody>
+      </table>
+    </div>
   </section>
 
-  <p style="font-size:12px;color:#aaa;">⚠️ 本頁為試算用途，歷史績效不代表未來。</p>
+  <p class="note">⚠️ 本頁僅為試算與教育用途，非投資建議。歷史績效不代表未來表現。</p>
 </div>
 
+<!-- 內建預設常用基金（無代碼） -->
+<script id="fundCatalogDefault" type="application/json">
+[
+  {"name":"鋒裕匯理基金新興市場債券 A 美元 (穩定月配息)","r1":8.56,"r3":39.91,"r5":15.07,"dy":17.16},
+  {"name":"高盛環球非投資等級債券基金X股美元(月配息)","r1":7.96,"r3":35.95,"r5":17.48,"dy":14.31}
+]
+</script>
+
+<!-- XLSX 用於匯入/匯出 -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
 <script>
-// 切換頁籤
+/* ===== Tabs ===== */
 const tabCash=document.getElementById('tab-cash');
 const tabPF=document.getElementById('tab-portfolio');
-function setTab(active){
+function setTab(which){
   document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected','false'));
   document.querySelectorAll('.tabpanel').forEach(p=>p.classList.remove('active'));
-  if(active==='cash'){tabCash.setAttribute('aria-selected','true');document.getElementById('panel-cash').classList.add('active');}
+  if(which==='cash'){tabCash.setAttribute('aria-selected','true');document.getElementById('panel-cash').classList.add('active');}
   else{tabPF.setAttribute('aria-selected','true');document.getElementById('panel-portfolio').classList.add('active');}
 }
-tabCash.onclick=()=>setTab('cash'); tabPF.onclick=()=>setTab('pf');
+tabCash.addEventListener('click',()=>setTab('cash'),{passive:true});
+tabPF.addEventListener('click',()=>setTab('pf'),{passive:true});
 
-// ===== 每月配息運算 =====
-function num(id){return parseFloat(document.getElementById(id).value)||0;}
+/* ===== 小工具 ===== */
+const $=id=>document.getElementById(id);
+const twd=n=>new Intl.NumberFormat('zh-TW',{style:'currency',currency:'TWD',maximumFractionDigits:0}).format(n);
+function cagrFromTotalPct(totalPct,years){const x=parseFloat(totalPct); if(!isFinite(x)) return NaN; const d=x/100; if(d<=-1||years<=0) return NaN; return Math.pow(1+d,1/years)-1;}
+
+/* ===== 每月配息運算（手機自動） ===== */
 function computeCashflow(){
-  const P=num('principal'),L=num('loan'),r=num('rate'),i=num('loanRate');
+  const P=parseFloat($('principal').value)||0;
+  const L=parseFloat($('loan').value)||0;
+  const r=parseFloat($('rate').value)||0;
+  const i=parseFloat($('loanRate').value)||0;
   const total=P+L, annualDiv=total*r/100, annualInt=L*i/100;
   const mDiv=annualDiv/12, mInt=annualInt/12, mNet=mDiv-mInt;
   const est=(P>0)?((annualDiv-annualInt)/P):NaN;
-  const twd=n=>new Intl.NumberFormat('zh-TW',{style:'currency',currency:'TWD',maximumFractionDigits:0}).format(n);
-  document.getElementById('vPrincipal').textContent=twd(P);
-  document.getElementById('vLoan').textContent=twd(L);
-  document.getElementById('vTotal').textContent=twd(total);
-  document.getElementById('vRate').textContent=r.toFixed(2)+'%';
-  document.getElementById('vMonthlyDiv').textContent=twd(mDiv);
-  document.getElementById('vMonthlyInt').textContent=twd(mInt);
-  document.getElementById('vMonthlyNet').textContent=twd(mNet);
-  document.getElementById('vEstReturn').textContent=isFinite(est)?(est*100).toFixed(2)+'%':'—';
+  $('vPrincipal').textContent=twd(P);
+  $('vLoan').textContent=twd(L);
+  $('vTotal').textContent=twd(total);
+  $('vRate').textContent=r.toFixed(2)+'%';
+  $('vMonthlyDiv').textContent=twd(mDiv);
+  $('vMonthlyInt').textContent=twd(mInt);
+  $('vMonthlyNet').textContent=twd(mNet);
+  $('vEstReturn').textContent=isFinite(est)?(est*100).toFixed(2)+'%':'—';
 }
 
-// ===== 投組分析 =====
-function cagrFromTotal(total,yrs){const x=parseFloat(total);if(!isFinite(x))return NaN;return Math.pow(1+x/100,1/yrs)-1;}
+/* ===== 常用基金 Catalog（LocalStorage + Excel） ===== */
+let FUND_CATALOG=[];
+function populatePresetSelect(){
+  const sel=$('presetSelect');
+  sel.innerHTML=`<option value="">— 選擇常用基金 —</option>` + FUND_CATALOG.map((f,i)=>`<option value="${i}">${f.name}</option>`).join('');
+}
+function loadCatalog(){
+  try{
+    const ls=localStorage.getItem('fundCatalog');
+    FUND_CATALOG = ls? JSON.parse(ls) : JSON.parse($('fundCatalogDefault').textContent.trim());
+  }catch(e){FUND_CATALOG=[]}
+  populatePresetSelect();
+}
+function saveCatalog(){ localStorage.setItem('fundCatalog', JSON.stringify(FUND_CATALOG)); }
+function nextEmptyRowIndex(){
+  const rows=[...document.querySelectorAll('#fundInputTable tbody tr')];
+  for(let i=0;i<rows.length;i++){
+    const name=(rows[i].querySelector('.name').value||'').trim();
+    const hasData=name || [...rows[i].querySelectorAll('.fin')].some(x=>x.value);
+    if(!hasData) return i;
+  }
+  return rows.length-1; // 都有資料時覆寫最後一列
+}
+function applyPresetToRow(idx,presetIdx){
+  const p=FUND_CATALOG[presetIdx]; if(!p) return alert('找不到該基金');
+  const tr=document.querySelectorAll('#fundInputTable tbody tr')[idx]; if(!tr) return;
+  const r2=v=>(v==null||!isFinite(v))?'':Number(v).toFixed(2);
+  tr.querySelector('.name').value=p.name||'';
+  tr.querySelector('.r1').value=r2(p.r1);
+  tr.querySelector('.r3').value=r2(p.r3);
+  tr.querySelector('.r5').value=r2(p.r5);
+  tr.querySelector('.dy').value=r2(p.dy);
+  recomputePortfolio();
+}
+$('applyPresetBtn').addEventListener('click',()=>{
+  const sel=$('presetSelect').value;
+  if(sel===''){alert('請先選擇常用基金');return;}
+  const rowIdx=nextEmptyRowIndex();
+  applyPresetToRow(rowIdx,parseInt(sel,10));
+});
+
+/* Excel 解析規則：純數字/數值一律 ×100；有 % 字尾則維持 */
+const HEADER_MAP={name:['基金名稱','name','基金','名稱'],r1:['近1年%','r1','1Y'],r3:['近3年累積%','r3','3Y'],r5:['近5年累積%','r5','5Y'],dy:['配息率%','dy','Yield%']};
+function pick(row,keys){for(const k of keys){if(Object.prototype.hasOwnProperty.call(row,k)&&row[k]!=='')return row[k];}return undefined;}
+function parsePercentCell(v){
+  if (v===''||v==null) return null;
+  if (typeof v==='string'){
+    const s=v.trim();
+    if (s.endsWith('%')){const n=parseFloat(s.slice(0,-1));return isNaN(n)?null:n;}
+    const n=parseFloat(s); return isNaN(n)?null:n*100;
+  }
+  if (typeof v==='number') return v*100;
+  return null;
+}
+function sheetToCatalog(ws){
+  const rows=XLSX.utils.sheet_to_json(ws,{defval:''}), out=[];
+  rows.forEach(r=>{
+    const item={name:String(pick(r,HEADER_MAP.name)||'').trim(),
+      r1:parsePercentCell(pick(r,HEADER_MAP.r1)),
+      r3:parsePercentCell(pick(r,HEADER_MAP.r3)),
+      r5:parsePercentCell(pick(r,HEADER_MAP.r5)),
+      dy:parsePercentCell(pick(r,HEADER_MAP.dy))};
+    ['r1','r3','r5','dy'].forEach(k=>{if(item[k]!=null&&isFinite(item[k])) item[k]=Math.round(item[k]*100)/100;});
+    if(item.name) out.push(item);
+  });
+  return out;
+}
+$('btnImportXlsx').addEventListener('click',()=>$('importXlsx').click());
+$('importXlsx').addEventListener('change',(e)=>{
+  const file=e.target.files[0]; if(!file) return;
+  const fr=new FileReader();
+  fr.onload=(evt)=>{
+    try{
+      const wb=XLSX.read(evt.target.result,{type:'array'}); const ws=wb.Sheets[wb.SheetNames[0]];
+      const arr=sheetToCatalog(ws); if(!arr.length) throw new Error('沒有有效資料列');
+      FUND_CATALOG=arr; saveCatalog(); populatePresetSelect();
+      alert(`Excel 匯入完成：${arr.length} 筆（數字×100；含%維持；四捨五入至小數2位）`);
+    }catch(err){ alert('Excel 匯入失敗：'+err.message); }
+    e.target.value='';
+  };
+  fr.readAsArrayBuffer(file);
+});
+$('btnExportXlsx').addEventListener('click',()=>{
+  try{
+    const header=['基金名稱','近1年%','近3年累積%','近5年累積%','配息率%'];
+    const n2=v=>(v==null||!isFinite(v))?'':Number(v).toFixed(2);
+    const body=FUND_CATALOG.map(f=>[f.name||'',n2(f.r1),n2(f.r3),n2(f.r5),n2(f.dy)]);
+    const ws=XLSX.utils.aoa_to_sheet([header,...body]); const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'基金清單'); XLSX.writeFile(wb,'fund-catalog.xlsx');
+  }catch(err){ alert('Excel 匯出失敗：'+err.message); }
+});
+
+/* ===== 投組計算 ===== */
 function recomputePortfolio(){
-  const rows=document.querySelectorAll('#fundInputTable tbody tr');
-  let sumW=0,data=[];
-  rows.forEach(tr=>{
-    const r1=parseFloat(tr.querySelector('.r1').value),r3=parseFloat(tr.querySelector('.r3').value),
-          r5=parseFloat(tr.querySelector('.r5').value),dy=parseFloat(tr.querySelector('.dy').value),
-          wt=parseFloat(tr.querySelector('.wt').value);
-    if(isFinite(wt)&&wt>0)sumW+=wt;
-    data.push({r1,r3,r5,dy,wt});
-  });
-  let c1=0,c3=0,c5=0,dy=0,ws=0;
-  data.forEach(f=>{
-    const w=(sumW>0?f.wt/sumW:0);
-    const c1v=isFinite(f.r1)?f.r1/100:NaN;
-    const c3v=isFinite(f.r3)?cagrFromTotal(f.r3,3):NaN;
-    const c5v=isFinite(f.r5)?cagrFromTotal(f.r5,5):NaN;
-    const dyv=isFinite(f.dy)?f.dy/100:NaN;
-    if(isFinite(c1v)){c1+=c1v*w;ws+=w;}
-    if(isFinite(c3v))c3+=c3v*w;
-    if(isFinite(c5v))c5+=c5v*w;
-    if(isFinite(dyv))dy+=dyv*w;
-  });
-  const cap1=c1-dy,cap3=c3-dy,cap5=c5-dy;
-  const set=(id,v)=>document.getElementById(id).textContent=isFinite(v)?(v*100).toFixed(2)+'%':'—';
-  set('pf_cagr1',c1);set('pf_cagr3',c3);set('pf_cagr5',c5);
-  set('pf_div1',dy);set('pf_div3',dy);set('pf_div5',dy);
+  const rows=[...document.querySelectorAll('#fundInputTable tbody tr')];
+  const data=rows.map((tr,idx)=>({
+    name:(tr.querySelector('.name').value||`基金${'ABCDE'[idx]}`),
+    r1:parseFloat(tr.querySelector('.r1').value),
+    r3:parseFloat(tr.querySelector('.r3').value),
+    r5:parseFloat(tr.querySelector('.r5').value),
+    dy:parseFloat(tr.querySelector('.dy').value),
+    wt:parseFloat(tr.querySelector('.wt').value)
+  }));
+  const valid=data.filter(f=>isFinite(f.wt)&&f.wt>0);
+  const sumW=valid.reduce((s,f)=>s+f.wt,0);
+  const wAvg=fn=>{let acc=0,ws=0; valid.forEach(f=>{const v=fn(f); if(isFinite(v)){acc+=v*(f.wt/sumW); ws+=f.wt/sumW;}}); return ws>0?acc:NaN;};
+  const c1=wAvg(f=>isFinite(f.r1)?f.r1/100:NaN);
+  const c3=wAvg(f=>isFinite(f.r3)?cagrFromTotalPct(f.r3,3):NaN);
+  const c5=wAvg(f=>isFinite(f.r5)?cagrFromTotalPct(f.r5,5):NaN);
+  const dy=wAvg(f=>isFinite(f.dy)?f.dy/100:NaN);
+  const cap1=(isFinite(c1)&&isFinite(dy))?c1-dy:NaN;
+  const cap3=(isFinite(c3)&&isFinite(dy))?c3-dy:NaN;
+  const cap5=(isFinite(c5)&&isFinite(dy))?c5-dy:NaN;
+  const set=(id,v)=>$(id).textContent=isFinite(v)?(v*100).toFixed(2)+'%':'—';
+  set('pf_cagr1',c1); set('pf_cagr3',c3); set('pf_cagr5',c5);
+  set('pf_div1',dy);  set('pf_div3',dy);  set('pf_div5',dy);
   set('pf_cap1',cap1);set('pf_cap3',cap3);set('pf_cap5',cap5);
 }
 
-// ===== 初始化，保證 iPhone Safari 可自動執行 =====
+/* ===== 綁定 + 初始化（iPhone Safari 保障） ===== */
+function bindInputs(){
+  document.querySelectorAll('.control').forEach(el=>{
+    el.addEventListener('input',()=>{computeCashflow();recomputePortfolio();},{passive:true});
+    el.addEventListener('change',()=>{computeCashflow();recomputePortfolio();},{passive:true});
+  });
+}
 function boot(){
+  loadCatalog();
+  bindInputs();
   computeCashflow();
-  document.querySelectorAll('.control').forEach(el=>el.addEventListener('input',()=>{computeCashflow();recomputePortfolio();}));
   recomputePortfolio();
 }
 document.addEventListener('DOMContentLoaded',boot,{once:true});
-window.addEventListener('pageshow',e=>{if(e.persisted)boot();});
+window.addEventListener('pageshow',e=>{ if(e.persisted) boot(); });
 </script>
 </body>
 </html>
