@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>雙贏策略｜手機版配息試算＋投組分析</title>
+<title>雙贏策略｜手機版配息試算＋投組分析＋LTV</title>
 <style>
 :root{--deep:#0A1221;--gold:#C9A227;--gold-soft:#E9D18A;--card:#0C152A;--pos:#39C27A;--neg:#E25A5A;--field:#101b33;--input:#071226;--line:rgba(233,209,138,.25);}
 html,body{margin:0;background:var(--deep);color:#fff;font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif}
@@ -95,7 +95,7 @@ td{border-bottom:1px solid var(--line)}
       </table>
     </div>
 
-    <!-- 投組指標 -->
+    <!-- 投組指標 + LTV -->
     <div class="table-wrap" style="margin-top:12px">
       <table>
         <thead><tr><th>投組指標（加權年化）</th><th>1年</th><th>3年</th><th>5年</th></tr></thead>
@@ -103,9 +103,11 @@ td{border-bottom:1px solid var(--line)}
           <tr><td>含息報酬率（CAGR）</td><td id="pf_cagr1" class="gold">—</td><td id="pf_cagr3" class="gold">—</td><td id="pf_cagr5" class="gold">—</td></tr>
           <tr><td>配息率（加權）</td><td id="pf_div1" class="pos">—</td><td id="pf_div3" class="pos">—</td><td id="pf_div5" class="pos">—</td></tr>
           <tr><td>資本成長率（含息−配息）</td><td id="pf_cap1" class="em">—</td><td id="pf_cap3" class="em">—</td><td id="pf_cap5" class="em">—</td></tr>
+          <tr><td>融資水位 LTV</td><td id="pf_ltv1" class="em">—</td><td id="pf_ltv3" class="em">—</td><td id="pf_ltv5" class="em">—</td></tr>
         </tbody>
       </table>
     </div>
+    <div class="note">LTV > 80% 會以紅色標示；LTV 估算以「資本成長率」（CAGR−配息）為投組價值變動率。</div>
   </section>
 
   <p class="note">⚠️ 本頁僅為試算與教育用途，非投資建議。歷史績效不代表未來表現。</p>
@@ -250,7 +252,9 @@ $('btnExportXlsx').addEventListener('click',()=>{
   }catch(err){ alert('Excel 匯出失敗：'+err.message); }
 });
 
-/* ===== 投組計算 ===== */
+/* ===== 投組計算 + LTV ===== */
+
+// 幾何年化（含息）→ 配息後的資本成長率：cap = CAGR - dividend
 function recomputePortfolio(){
   const rows=[...document.querySelectorAll('#fundInputTable tbody tr')];
   const data=rows.map((tr,idx)=>({
@@ -264,17 +268,59 @@ function recomputePortfolio(){
   const valid=data.filter(f=>isFinite(f.wt)&&f.wt>0);
   const sumW=valid.reduce((s,f)=>s+f.wt,0);
   const wAvg=fn=>{let acc=0,ws=0; valid.forEach(f=>{const v=fn(f); if(isFinite(v)){acc+=v*(f.wt/sumW); ws+=f.wt/sumW;}}); return ws>0?acc:NaN;};
+
   const c1=wAvg(f=>isFinite(f.r1)?f.r1/100:NaN);
   const c3=wAvg(f=>isFinite(f.r3)?cagrFromTotalPct(f.r3,3):NaN);
   const c5=wAvg(f=>isFinite(f.r5)?cagrFromTotalPct(f.r5,5):NaN);
   const dy=wAvg(f=>isFinite(f.dy)?f.dy/100:NaN);
+
   const cap1=(isFinite(c1)&&isFinite(dy))?c1-dy:NaN;
   const cap3=(isFinite(c3)&&isFinite(dy))?c3-dy:NaN;
   const cap5=(isFinite(c5)&&isFinite(dy))?c5-dy:NaN;
+
   const set=(id,v)=>$(id).textContent=isFinite(v)?(v*100).toFixed(2)+'%':'—';
   set('pf_cagr1',c1); set('pf_cagr3',c3); set('pf_cagr5',c5);
   set('pf_div1',dy);  set('pf_div3',dy);  set('pf_div5',dy);
   set('pf_cap1',cap1);set('pf_cap3',cap3);set('pf_cap5',cap5);
+
+  updateLTV(cap1,cap3,cap5); // 依資本成長率估算 LTV
+}
+
+// 單利 + 第3年起逐年併入本金（與你的舊版一致）
+function outstandingSeries(P0,r,N=5){
+  const B={},I={},O={};
+  for(let t=1;t<=N;t++){
+    if(t<=2){B[t]=P0;} else {let s=0; for(let k=1;k<=t-2;k++) s+=I[k]; B[t]=P0+s;}
+    I[t]=B[t]*r;
+    O[t]=B[t]+I[t]+(t>=2?I[t-1]:0); // 本金 + 當年利息 + 去年利息（第2年起）
+  }
+  return {B,I,O}; // O[t]：第 t 年應付餘額（含併入）
+}
+
+function updateLTV(cap1,cap3,cap5){
+  const P=parseFloat($('principal').value)||0;
+  const L=parseFloat($('loan').value)||0;
+  const i=(parseFloat($('loanRate').value)||0)/100;
+
+  const V0=P+L, P0=L, r=i;
+  const els=[$('pf_ltv1'),$('pf_ltv3'),$('pf_ltv5')];
+  els.forEach(el=>{el.textContent='—'; el.classList.remove('neg');});
+
+  if(!(P0>0 && V0>0)) return;
+
+  const {O}=outstandingSeries(P0,r,5);
+  const ltv=(g,n)=>{ if(!isFinite(g)) return NaN; const Vn=V0*Math.pow(1+g,n); return (O[n]/Vn)*100; };
+
+  const l1=ltv(cap1,1), l3=ltv(cap3,3), l5=ltv(cap5,5);
+  const fmt=v=>isFinite(v)?v.toFixed(2)+'%':'—';
+
+  $('pf_ltv1').textContent=fmt(l1);
+  $('pf_ltv3').textContent=fmt(l3);
+  $('pf_ltv5').textContent=fmt(l5);
+
+  // >80% 標紅
+  const paint=(el,v)=>{ el.classList.remove('neg'); if(isFinite(v)&&v>80) el.classList.add('neg'); };
+  paint($('pf_ltv1'),l1); paint($('pf_ltv3'),l3); paint($('pf_ltv5'),l5);
 }
 
 /* ===== 綁定 + 初始化（iPhone Safari 保障） ===== */
