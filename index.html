@@ -26,6 +26,7 @@ td{border-bottom:1px solid var(--line)}
 .tabpanel.active{display:block}
 .actions{display:flex;gap:8px;flex-wrap:wrap}
 .btn{flex:1;padding:10px;border:0;border-radius:10px;background:linear-gradient(90deg,var(--gold),var(--gold-soft));color:#0A1221;font-weight:700}
+.btn.secondary{background:#1a2746;color:#E9D18A;border:1px solid rgba(201,162,39,.35)}
 .note{color:#b9c2d5;font-size:12px;margin-top:6px}
 .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid rgba(201,162,39,.25);border-radius:10px;background:var(--card)}
 </style>
@@ -42,6 +43,19 @@ td{border-bottom:1px solid var(--line)}
   <section class="tabpanel active" id="panel-cash" role="tabpanel" aria-labelledby="tab-cash">
     <div class="field"><label>投入本金（$）</label><input id="principal" type="number" class="control" value="1000000"></div>
     <div class="field"><label>融資金額（$）</label><input id="loan" type="number" class="control" value="1500000"></div>
+    <div class="field">
+      <label>融資成數</label>
+      <select id="ratio" class="control">
+        <option value="0|0.0000">0 成</option>
+        <option value="0.1|0.1111111111">1 成</option>
+        <option value="0.2|0.25">2 成</option>
+        <option value="0.3|0.4285714286">3 成</option>
+        <option value="0.4|0.6666666667">4 成</option>
+        <option value="0.5|1.0">5 成</option>
+        <option value="0.6|1.5" selected>6 成</option>
+        <option value="custom|custom">自訂</option>
+      </select>
+    </div>
     <div class="field"><label>年化配息率（%）</label><input id="rate" type="number" class="control" value="10.0" step="0.01"></div>
     <div class="field"><label>融資年利率（%）</label><input id="loanRate" type="number" class="control" value="4.0" step="0.01"></div>
 
@@ -49,6 +63,7 @@ td{border-bottom:1px solid var(--line)}
       <table>
         <tbody>
           <tr><td>投入本金</td><td id="vPrincipal">—</td></tr>
+          <tr><td>融資成數</td><td id="vRatio">—</td></tr>
           <tr><td>融資金額</td><td id="vLoan">—</td></tr>
           <tr><td>總投入</td><td id="vTotal" class="em">—</td></tr>
           <tr><td>年化配息率</td><td id="vRate">—</td></tr>
@@ -64,7 +79,7 @@ td{border-bottom:1px solid var(--line)}
   <!-- 投組分析 -->
   <section class="tabpanel" id="panel-portfolio" role="tabpanel" aria-labelledby="tab-portfolio">
 
-    <!-- 一鍵帶入 + Excel -->
+    <!-- 一鍵帶入 + Excel + 清除 -->
     <div class="field">
       <label>常用基金清單</label>
       <select id="presetSelect" class="control">
@@ -75,6 +90,7 @@ td{border-bottom:1px solid var(--line)}
       <button class="btn" id="applyPresetBtn">帶入至下一個空列</button>
       <button class="btn" id="btnExportXlsx">匯出 Excel</button>
       <button class="btn" id="btnImportXlsx">匯入 Excel</button>
+      <button class="btn secondary" id="btnClearRows">清除表格</button>
       <input type="file" id="importXlsx" accept=".xlsx,.xls" style="display:none" />
     </div>
     <div class="note">Excel 欄位：基金名稱、近1年%、近3年累積%、近5年累積%、配息率%。<br>數字/純數字字串一律 ×100；結尾含「%」維持原值。</div>
@@ -140,16 +156,33 @@ tabPF.addEventListener('click',()=>setTab('pf'),{passive:true});
 const $=id=>document.getElementById(id);
 const twd=n=>new Intl.NumberFormat('zh-TW',{style:'currency',currency:'TWD',maximumFractionDigits:0}).format(n);
 function cagrFromTotalPct(totalPct,years){const x=parseFloat(totalPct); if(!isFinite(x)) return NaN; const d=x/100; if(d<=-1||years<=0) return NaN; return Math.pow(1+d,1/years)-1;}
+const r2=v=>(v==null||!isFinite(v))?'':Number(v).toFixed(2);
 
-/* ===== 每月配息運算（手機自動） ===== */
+/* ===== 每月配息運算（含融資成數） ===== */
+function parseRatioValue(val){
+  if(!val || val.startsWith('custom')) return null;
+  const p=val.split('|'); return p.length>=2?{ratio:parseFloat(p[0]),mult:parseFloat(p[1])}:null;
+}
+let autoApplied=true;
 function computeCashflow(){
-  const P=parseFloat($('principal').value)||0;
-  const L=parseFloat($('loan').value)||0;
-  const r=parseFloat($('rate').value)||0;
-  const i=parseFloat($('loanRate').value)||0;
+  const principalEl=$('principal'),loanEl=$('loan'),ratioEl=$('ratio'),rateEl=$('rate'),loanRateEl=$('loanRate');
+  const P=parseFloat(principalEl.value)||0;
+  let   L=parseFloat(loanEl.value)||0;
+  const r=parseFloat(rateEl.value)||0;
+  const i=parseFloat(loanRateEl.value)||0;
+
+  const ratioObj=parseRatioValue(ratioEl.value);
+  if(ratioObj && isFinite(ratioObj.mult)){
+    const calcLoan=Math.round(P*ratioObj.mult);
+    if(autoApplied || L===0 || L===calcLoan){
+      L=calcLoan; loanEl.value=L; autoApplied=true;
+    }
+  }
+
   const total=P+L, annualDiv=total*r/100, annualInt=L*i/100;
   const mDiv=annualDiv/12, mInt=annualInt/12, mNet=mDiv-mInt;
   const est=(P>0)?((annualDiv-annualInt)/P):NaN;
+
   $('vPrincipal').textContent=twd(P);
   $('vLoan').textContent=twd(L);
   $('vTotal').textContent=twd(total);
@@ -158,6 +191,7 @@ function computeCashflow(){
   $('vMonthlyInt').textContent=twd(mInt);
   $('vMonthlyNet').textContent=twd(mNet);
   $('vEstReturn').textContent=isFinite(est)?(est*100).toFixed(2)+'%':'—';
+  $('vRatio').textContent=ratioObj?(ratioObj.ratio*100).toFixed(0)+'%':'自訂';
 }
 
 /* ===== 常用基金 Catalog（LocalStorage + Excel） ===== */
@@ -186,7 +220,6 @@ function nextEmptyRowIndex(){
 function applyPresetToRow(idx,presetIdx){
   const p=FUND_CATALOG[presetIdx]; if(!p) return alert('找不到該基金');
   const tr=document.querySelectorAll('#fundInputTable tbody tr')[idx]; if(!tr) return;
-  const r2=v=>(v==null||!isFinite(v))?'':Number(v).toFixed(2);
   tr.querySelector('.name').value=p.name||'';
   tr.querySelector('.r1').value=r2(p.r1);
   tr.querySelector('.r3').value=r2(p.r3);
@@ -199,6 +232,16 @@ $('applyPresetBtn').addEventListener('click',()=>{
   if(sel===''){alert('請先選擇常用基金');return;}
   const rowIdx=nextEmptyRowIndex();
   applyPresetToRow(rowIdx,parseInt(sel,10));
+});
+
+/* 清除表格（新增） */
+$('btnClearRows').addEventListener('click',()=>{
+  const rows=[...document.querySelectorAll('#fundInputTable tbody tr')];
+  rows.forEach(tr=>{
+    tr.querySelector('.name').value='';
+    tr.querySelectorAll('.fin').forEach(inp=>inp.value='');
+  });
+  recomputePortfolio();
 });
 
 /* Excel 解析規則：純數字/數值一律 ×100；有 % 字尾則維持 */
@@ -253,8 +296,6 @@ $('btnExportXlsx').addEventListener('click',()=>{
 });
 
 /* ===== 投組計算 + LTV ===== */
-
-// 幾何年化（含息）→ 配息後的資本成長率：cap = CAGR - dividend
 function recomputePortfolio(){
   const rows=[...document.querySelectorAll('#fundInputTable tbody tr')];
   const data=rows.map((tr,idx)=>({
@@ -286,17 +327,16 @@ function recomputePortfolio(){
   updateLTV(cap1,cap3,cap5); // 依資本成長率估算 LTV
 }
 
-// 單利 + 第3年起逐年併入本金（與你的舊版一致）
+// 單利 + 第3年起逐年併入本金
 function outstandingSeries(P0,r,N=5){
   const B={},I={},O={};
   for(let t=1;t<=N;t++){
     if(t<=2){B[t]=P0;} else {let s=0; for(let k=1;k<=t-2;k++) s+=I[k]; B[t]=P0+s;}
     I[t]=B[t]*r;
-    O[t]=B[t]+I[t]+(t>=2?I[t-1]:0); // 本金 + 當年利息 + 去年利息（第2年起）
+    O[t]=B[t]+I[t]+(t>=2?I[t-1]:0);
   }
-  return {B,I,O}; // O[t]：第 t 年應付餘額（含併入）
+  return {B,I,O};
 }
-
 function updateLTV(cap1,cap3,cap5){
   const P=parseFloat($('principal').value)||0;
   const L=parseFloat($('loan').value)||0;
@@ -305,20 +345,15 @@ function updateLTV(cap1,cap3,cap5){
   const V0=P+L, P0=L, r=i;
   const els=[$('pf_ltv1'),$('pf_ltv3'),$('pf_ltv5')];
   els.forEach(el=>{el.textContent='—'; el.classList.remove('neg');});
-
   if(!(P0>0 && V0>0)) return;
 
   const {O}=outstandingSeries(P0,r,5);
   const ltv=(g,n)=>{ if(!isFinite(g)) return NaN; const Vn=V0*Math.pow(1+g,n); return (O[n]/Vn)*100; };
-
   const l1=ltv(cap1,1), l3=ltv(cap3,3), l5=ltv(cap5,5);
   const fmt=v=>isFinite(v)?v.toFixed(2)+'%':'—';
-
   $('pf_ltv1').textContent=fmt(l1);
   $('pf_ltv3').textContent=fmt(l3);
   $('pf_ltv5').textContent=fmt(l5);
-
-  // >80% 標紅
   const paint=(el,v)=>{ el.classList.remove('neg'); if(isFinite(v)&&v>80) el.classList.add('neg'); };
   paint($('pf_ltv1'),l1); paint($('pf_ltv3'),l3); paint($('pf_ltv5'),l5);
 }
