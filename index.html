@@ -8,9 +8,11 @@
 :root{--deep:#0A1221;--gold:#C9A227;--gold-soft:#E9D18A;--card:#0C152A;--pos:#39C27A;--neg:#E25A5A;--field:#101b33;--input:#071226;--line:rgba(233,209,138,.25);}
 html,body{margin:0;background:var(--deep);color:#fff;font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif}
 .wrap{max-width:540px;margin:0 auto;padding:12px 12px 84px}
-.tabs{display:flex;gap:8px;justify-content:center;margin:10px 0}
+.topbar{display:flex;gap:8px;align-items:center;justify-content:space-between;margin:10px 0}
+.tabs{display:flex;gap:8px;flex:1}
 .tab{flex:1;padding:10px;border-radius:10px;border:1px solid rgba(201,162,39,.35);background:#0f1830;color:#E9D18A;font-weight:700}
 .tab[aria-selected="true"]{background:linear-gradient(90deg,var(--gold),var(--gold-soft));color:#0A1221;border-color:transparent}
+.btn{padding:10px 12px;border:0;border-radius:10px;background:linear-gradient(90deg,var(--gold),var(--gold-soft));color:#0A1221;font-weight:700;white-space:nowrap}
 .field{margin-bottom:10px}
 label{display:block;font-size:13px;color:#E9D18A;margin-bottom:6px}
 .control{width:100%;height:42px;border-radius:9px;border:1px solid rgba(233,209,138,.12);background:var(--input);color:#fff;font-size:15px;padding:0 10px}
@@ -25,19 +27,23 @@ td{border-bottom:1px solid var(--line)}
 .tabpanel{display:none}
 .tabpanel.active{display:block}
 .actions{display:flex;gap:8px;flex-wrap:wrap}
-.btn{flex:1;padding:10px;border:0;border-radius:10px;background:linear-gradient(90deg,var(--gold),var(--gold-soft));color:#0A1221;font-weight:700}
 .btn.secondary{background:#1a2746;color:#E9D18A;border:1px solid rgba(201,162,39,.35)}
 .note{color:#b9c2d5;font-size:12px;margin-top:6px}
 .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid rgba(201,162,39,.25);border-radius:10px;background:var(--card)}
-.info-row{display:flex;justify-content:space-between;gap:8px;align-items:center}
+/* 匯出時確保背景為純色以免透明 */
+.exporting .table-wrap{background:#0A1221!important}
 </style>
 </head>
 <body>
 <div class="wrap">
 
-  <div class="tabs" role="tablist">
-    <button class="tab" id="tab-cash" aria-selected="true">每月配息</button>
-    <button class="tab" id="tab-portfolio" aria-selected="false">投組分析</button>
+  <!-- Tabs + 匯出 -->
+  <div class="topbar">
+    <div class="tabs" role="tablist">
+      <button class="tab" id="tab-cash" aria-selected="true">每月配息</button>
+      <button class="tab" id="tab-portfolio" aria-selected="false">投組分析</button>
+    </div>
+    <button class="btn" id="btnPng">匯出 PNG</button>
   </div>
 
   <!-- 每月配息 -->
@@ -142,8 +148,10 @@ td{border-bottom:1px solid var(--line)}
 ]
 </script>
 
-<!-- XLSX 用於匯入/匯出 -->
+<!-- libs -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" defer></script>
+
 <script>
 /* ===== Tabs ===== */
 const tabCash=document.getElementById('tab-cash');
@@ -209,7 +217,6 @@ function updateUploadInfo(){
   const infoEl=$('uploadInfo');
   const ts=localStorage.getItem('fundCatalogUploadTime');
   if(ts){
-    // 以台灣在地格式顯示
     infoEl.textContent='最後匯入時間：' + new Date(ts).toLocaleString('zh-TW');
   }else{
     infoEl.textContent='目前使用預設清單（尚未匯入 Excel）';
@@ -378,6 +385,27 @@ function updateLTV(cap1,cap3,cap5){
   const paint=(el,v)=>{ el.classList.remove('neg'); if(isFinite(v)&&v>80) el.classList.add('neg'); };
   paint($('pf_ltv1'),l1); paint($('pf_ltv3'),l3); paint($('pf_ltv5'),l5);
 }
+
+/* ===== 匯出 PNG ===== */
+async function exportPng(){
+  try{
+    document.body.classList.add('exporting');
+    await new Promise(r=>setTimeout(r,0)); // 讓樣式先套用
+    const activePanel=document.querySelector('.tabpanel.active');
+    if(!activePanel) return alert('找不到要匯出的區塊');
+    const canvas=await html2canvas(activePanel,{backgroundColor:'#0A1221',scale:2,useCORS:true});
+    const a=document.createElement('a');
+    const isCash=activePanel.id==='panel-cash';
+    a.download=(isCash?'配息試算':'投組分析')+'.png';
+    a.href=canvas.toDataURL('image/png');
+    a.click();
+  }catch(err){
+    alert('匯出 PNG 失敗：'+err.message);
+  }finally{
+    document.body.classList.remove('exporting');
+  }
+}
+document.getElementById('btnPng').addEventListener('click',exportPng);
 
 /* ===== 綁定 + 初始化（iPhone Safari 保障） ===== */
 function bindInputs(){
