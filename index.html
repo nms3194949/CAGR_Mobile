@@ -29,6 +29,7 @@ td{border-bottom:1px solid var(--line)}
 .btn.secondary{background:#1a2746;color:#E9D18A;border:1px solid rgba(201,162,39,.35)}
 .note{color:#b9c2d5;font-size:12px;margin-top:6px}
 .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid rgba(201,162,39,.25);border-radius:10px;background:var(--card)}
+.info-row{display:flex;justify-content:space-between;gap:8px;align-items:center}
 </style>
 </head>
 <body>
@@ -79,20 +80,24 @@ td{border-bottom:1px solid var(--line)}
   <!-- 投組分析 -->
   <section class="tabpanel" id="panel-portfolio" role="tabpanel" aria-labelledby="tab-portfolio">
 
-    <!-- 一鍵帶入 + Excel + 清除 -->
+    <!-- 一鍵帶入 + Excel + 清除表格 -->
     <div class="field">
       <label>常用基金清單</label>
       <select id="presetSelect" class="control">
         <option value="">— 選擇常用基金 —</option>
       </select>
     </div>
-    <div class="actions" style="margin-bottom:8px">
+    <div class="actions" style="margin-bottom:6px">
       <button class="btn" id="applyPresetBtn">帶入至下一個空列</button>
       <button class="btn" id="btnExportXlsx">匯出 Excel</button>
       <button class="btn" id="btnImportXlsx">匯入 Excel</button>
       <button class="btn secondary" id="btnClearRows">清除表格</button>
       <input type="file" id="importXlsx" accept=".xlsx,.xls" style="display:none" />
     </div>
+
+    <!-- 顯示最後匯入日期 -->
+    <p id="uploadInfo" class="note"></p>
+
     <div class="note">Excel 欄位：基金名稱、近1年%、近3年累積%、近5年累積%、配息率%。<br>數字/純數字字串一律 ×100；結尾含「%」維持原值。</div>
 
     <!-- A~E 輸入表（靜態五列） -->
@@ -200,14 +205,25 @@ function populatePresetSelect(){
   const sel=$('presetSelect');
   sel.innerHTML=`<option value="">— 選擇常用基金 —</option>` + FUND_CATALOG.map((f,i)=>`<option value="${i}">${f.name}</option>`).join('');
 }
+function updateUploadInfo(){
+  const infoEl=$('uploadInfo');
+  const ts=localStorage.getItem('fundCatalogUploadTime');
+  if(ts){
+    // 以台灣在地格式顯示
+    infoEl.textContent='最後匯入時間：' + new Date(ts).toLocaleString('zh-TW');
+  }else{
+    infoEl.textContent='目前使用預設清單（尚未匯入 Excel）';
+  }
+}
 function loadCatalog(){
   try{
     const ls=localStorage.getItem('fundCatalog');
     FUND_CATALOG = ls? JSON.parse(ls) : JSON.parse($('fundCatalogDefault').textContent.trim());
   }catch(e){FUND_CATALOG=[]}
   populatePresetSelect();
+  updateUploadInfo();
 }
-function saveCatalog(){ localStorage.setItem('fundCatalog', JSON.stringify(FUND_CATALOG)); }
+function saveCatalog(){ localStorage.setItem('fundCatalog', JSON.stringify(FUND_CATALOG)); updateUploadInfo(); }
 function nextEmptyRowIndex(){
   const rows=[...document.querySelectorAll('#fundInputTable tbody tr')];
   for(let i=0;i<rows.length;i++){
@@ -234,7 +250,7 @@ $('applyPresetBtn').addEventListener('click',()=>{
   applyPresetToRow(rowIdx,parseInt(sel,10));
 });
 
-/* 清除表格（新增） */
+/* 清除表格（僅清 A~E 欄位） */
 $('btnClearRows').addEventListener('click',()=>{
   const rows=[...document.querySelectorAll('#fundInputTable tbody tr')];
   rows.forEach(tr=>{
@@ -278,7 +294,12 @@ $('importXlsx').addEventListener('change',(e)=>{
     try{
       const wb=XLSX.read(evt.target.result,{type:'array'}); const ws=wb.Sheets[wb.SheetNames[0]];
       const arr=sheetToCatalog(ws); if(!arr.length) throw new Error('沒有有效資料列');
-      FUND_CATALOG=arr; saveCatalog(); populatePresetSelect();
+      FUND_CATALOG=arr;
+      // 儲存 + 記錄匯入時間
+      localStorage.setItem('fundCatalog', JSON.stringify(FUND_CATALOG));
+      localStorage.setItem('fundCatalogUploadTime', new Date().toISOString());
+      populatePresetSelect();
+      updateUploadInfo();
       alert(`Excel 匯入完成：${arr.length} 筆（數字×100；含%維持；四捨五入至小數2位）`);
     }catch(err){ alert('Excel 匯入失敗：'+err.message); }
     e.target.value='';
