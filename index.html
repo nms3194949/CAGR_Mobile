@@ -5,32 +5,46 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>雙贏策略｜手機版配息試算＋投組分析＋LTV</title>
 <style>
-:root{--deep:#0A1221;--gold:#C9A227;--gold-soft:#E9D18A;--card:#0C152A;--pos:#39C27A;--neg:#E25A5A;--field:#101b33;--input:#071226;--line:rgba(233,209,138,.25);}
+:root{--deep:#0A1221;--gold:#C9A227;--gold-soft:#E9D18A;--card:#0C152A;--pos:#39C27A;--neg:#E25A5A;--input:#071226;}
 html,body{margin:0;background:var(--deep);color:#fff;font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif}
 .wrap{max-width:540px;margin:0 auto;padding:12px 12px 84px}
+
+/* 頂部：分頁＋匯出 */
 .topbar{display:flex;gap:8px;align-items:center;justify-content:space-between;margin:10px 0}
 .tabs{display:flex;gap:8px;flex:1}
 .tab{flex:1;padding:10px;border-radius:10px;border:1px solid rgba(201,162,39,.35);background:#0f1830;color:#E9D18A;font-weight:700}
 .tab[aria-selected="true"]{background:linear-gradient(90deg,var(--gold),var(--gold-soft));color:#0A1221;border-color:transparent}
 .btn{padding:10px 12px;border:0;border-radius:10px;background:linear-gradient(90deg,var(--gold),var(--gold-soft));color:#0A1221;font-weight:700;white-space:nowrap}
+
+/* 表單 */
 .field{margin-bottom:10px}
 label{display:block;font-size:13px;color:#E9D18A;margin-bottom:6px}
 .control{width:100%;height:42px;border-radius:9px;border:1px solid rgba(233,209,138,.12);background:var(--input);color:#fff;font-size:15px;padding:0 10px}
+
+/* 表格 */
 table{width:100%;border-collapse:collapse;margin-top:10px}
 th,td{padding:9px 10px;text-align:left;font-size:14px;white-space:nowrap}
-th{color:var(--gold-soft);border-bottom:2px solid rgba(201,162,39,.8)}
-td{border-bottom:1px solid var(--line)}
 .pos{color:var(--pos);font-weight:700}
 .neg{color:var(--neg);font-weight:700}
 .gold{color:var(--gold);font-weight:700}
 .em{font-weight:700}
+.note{color:#b9c2d5;font-size:12px;margin-top:6px}
 .tabpanel{display:none}
 .tabpanel.active{display:block}
 .actions{display:flex;gap:8px;flex-wrap:wrap}
 .btn.secondary{background:#1a2746;color:#E9D18A;border:1px solid rgba(201,162,39,.35)}
-.note{color:#b9c2d5;font-size:12px;margin-top:6px}
-.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid rgba(201,162,39,.25);border-radius:10px;background:var(--card)}
-/* 匯出時確保背景為純色以免透明 */
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid rgba(201,162,39,.25);border-radius:10px;background:#0C152A}
+
+/* === 完整格線樣式（套用到所有表格） === */
+.table-grid th,
+.table-grid td { border: 1px solid rgba(233,209,138,.35); }
+.table-grid thead th {
+  background: rgba(201,162,39,.12);
+  border-bottom: 2px solid rgba(201,162,39,.8);
+  color:#E9D18A;
+}
+
+/* 匯出 PNG 時確保底色不透明 */
 .exporting .table-wrap{background:#0A1221!important}
 </style>
 </head>
@@ -48,8 +62,8 @@ td{border-bottom:1px solid var(--line)}
 
   <!-- 每月配息 -->
   <section class="tabpanel active" id="panel-cash" role="tabpanel" aria-labelledby="tab-cash">
-    <div class="field"><label>投入本金（$）</label><input id="principal" type="number" class="control" value="1000000"></div>
-    <div class="field"><label>融資金額（$）</label><input id="loan" type="number" class="control" value="1500000"></div>
+    <div class="field"><label>投入本金（$）</label><input id="principal" type="number" class="control" value="1000000" step="1"></div>
+    <div class="field"><label>融資金額（$）</label><input id="loan" type="number" class="control" value="1500000" step="1"></div>
     <div class="field">
       <label>融資成數</label>
       <select id="ratio" class="control">
@@ -67,7 +81,7 @@ td{border-bottom:1px solid var(--line)}
     <div class="field"><label>融資年利率（%）</label><input id="loanRate" type="number" class="control" value="4.0" step="0.01"></div>
 
     <div class="table-wrap">
-      <table>
+      <table class="table-grid">
         <tbody>
           <tr><td>投入本金</td><td id="vPrincipal">—</td></tr>
           <tr><td>融資成數</td><td id="vRatio">—</td></tr>
@@ -108,7 +122,7 @@ td{border-bottom:1px solid var(--line)}
 
     <!-- A~E 輸入表（靜態五列） -->
     <div class="table-wrap" style="margin-top:10px">
-      <table id="fundInputTable">
+      <table id="fundInputTable" class="table-grid">
         <thead>
           <tr><th>基金名稱</th><th>近1年%</th><th>近3年%</th><th>近5年%</th><th>配息%</th><th>比重%</th></tr>
         </thead>
@@ -124,7 +138,7 @@ td{border-bottom:1px solid var(--line)}
 
     <!-- 投組指標 + LTV -->
     <div class="table-wrap" style="margin-top:12px">
-      <table>
+      <table class="table-grid">
         <thead><tr><th>投組指標（加權年化）</th><th>1年</th><th>3年</th><th>5年</th></tr></thead>
         <tbody>
           <tr><td>含息報酬率（CAGR）</td><td id="pf_cagr1" class="gold">—</td><td id="pf_cagr3" class="gold">—</td><td id="pf_cagr5" class="gold">—</td></tr>
@@ -149,8 +163,8 @@ td{border-bottom:1px solid var(--line)}
 </script>
 
 <!-- libs -->
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
 <script>
 /* ===== Tabs ===== */
@@ -165,13 +179,13 @@ function setTab(which){
 tabCash.addEventListener('click',()=>setTab('cash'),{passive:true});
 tabPF.addEventListener('click',()=>setTab('pf'),{passive:true});
 
-/* ===== 小工具 ===== */
+/* ===== 工具 ===== */
 const $=id=>document.getElementById(id);
 const twd=n=>new Intl.NumberFormat('zh-TW',{style:'currency',currency:'TWD',maximumFractionDigits:0}).format(n);
 function cagrFromTotalPct(totalPct,years){const x=parseFloat(totalPct); if(!isFinite(x)) return NaN; const d=x/100; if(d<=-1||years<=0) return NaN; return Math.pow(1+d,1/years)-1;}
 const r2=v=>(v==null||!isFinite(v))?'':Number(v).toFixed(2);
 
-/* ===== 每月配息運算（含融資成數） ===== */
+/* ===== 每月配息（含融資成數自動帶入） ===== */
 function parseRatioValue(val){
   if(!val || val.startsWith('custom')) return null;
   const p=val.split('|'); return p.length>=2?{ratio:parseFloat(p[0]),mult:parseFloat(p[1])}:null;
@@ -230,7 +244,6 @@ function loadCatalog(){
   populatePresetSelect();
   updateUploadInfo();
 }
-function saveCatalog(){ localStorage.setItem('fundCatalog', JSON.stringify(FUND_CATALOG)); updateUploadInfo(); }
 function nextEmptyRowIndex(){
   const rows=[...document.querySelectorAll('#fundInputTable tbody tr')];
   for(let i=0;i<rows.length;i++){
@@ -267,7 +280,7 @@ $('btnClearRows').addEventListener('click',()=>{
   recomputePortfolio();
 });
 
-/* Excel 解析規則：純數字/數值一律 ×100；有 % 字尾則維持 */
+/* Excel 匯入/匯出 */
 const HEADER_MAP={name:['基金名稱','name','基金','名稱'],r1:['近1年%','r1','1Y'],r3:['近3年累積%','r3','3Y'],r5:['近5年累積%','r5','5Y'],dy:['配息率%','dy','Yield%']};
 function pick(row,keys){for(const k of keys){if(Object.prototype.hasOwnProperty.call(row,k)&&row[k]!=='')return row[k];}return undefined;}
 function parsePercentCell(v){
@@ -293,8 +306,8 @@ function sheetToCatalog(ws){
   });
   return out;
 }
-$('btnImportXlsx').addEventListener('click',()=>$('importXlsx').click());
-$('importXlsx').addEventListener('change',(e)=>{
+document.getElementById('btnImportXlsx').addEventListener('click',()=>document.getElementById('importXlsx').click());
+document.getElementById('importXlsx').addEventListener('change',(e)=>{
   const file=e.target.files[0]; if(!file) return;
   const fr=new FileReader();
   fr.onload=(evt)=>{
@@ -313,7 +326,7 @@ $('importXlsx').addEventListener('change',(e)=>{
   };
   fr.readAsArrayBuffer(file);
 });
-$('btnExportXlsx').addEventListener('click',()=>{
+document.getElementById('btnExportXlsx').addEventListener('click',()=>{
   try{
     const header=['基金名稱','近1年%','近3年累積%','近5年累積%','配息率%'];
     const n2=v=>(v==null||!isFinite(v))?'':Number(v).toFixed(2);
