@@ -93,7 +93,6 @@ details.collapsible summary::-webkit-details-marker{display:none}
     <button class="btn" id="btnPng">匯出 PNG</button>
   </div>
 
-  <!-- 每月配息 -->
   <section class="tabpanel active" id="panel-cash" role="tabpanel" aria-labelledby="tab-cash">
     <div class="field"><label>投入本金（$）</label><input id="principal" type="number" class="control" value="1000000" step="1"></div>
     <div class="field"><label>融資金額（$）</label><input id="loan" type="number" class="control" value="1500000" step="1"></div>
@@ -142,7 +141,6 @@ details.collapsible summary::-webkit-details-marker{display:none}
     </div>
   </section>
 
-  <!-- 投組分析 -->
   <section class="tabpanel" id="panel-portfolio" role="tabpanel" aria-labelledby="tab-portfolio">
 
     <div class="field">
@@ -194,12 +192,10 @@ details.collapsible summary::-webkit-details-marker{display:none}
 
   </section>
 
-  <!-- AI最佳化（Pro） -->
   <section class="tabpanel" id="panel-ai" role="tabpanel" aria-labelledby="tab-ai">
     <div class="ai-card">
       <h4>AI 最佳化（Pro）</h4>
 
-      <!-- 控制區 -->
       <div class="ai-grid">
         <div class="field"><label>年化配息率門檻（%）</label><input id="pro_minDy" type="number" class="control" value="6.0" step="0.1"></div>
         <div class="field"><label>最多配息基金數（檔）</label><input id="pro_maxDiv" type="number" class="control" value="3" step="1" min="1"></div>
@@ -220,12 +216,13 @@ details.collapsible summary::-webkit-details-marker{display:none}
         </div>
       </div>
 
-      <!-- 相關係數檔與排除 -->
       <div class="actions" style="margin-top:8px;gap:8px;flex-wrap:wrap">
         <input type="file" id="pro_corr_file" accept=".xlsx,.xls,.csv,.tsv" style="display:none" />
         <button class="btn secondary" id="pro_corr_import_btn">匯入相關係數檔</button>
+        <span id="corr_status_indicator" class="ai-pill">未載入</span>
         <button class="btn secondary" id="pro_corr_load_btn">載入已儲存</button>
         <button class="btn secondary" id="pro_corr_clear_btn">清空</button>
+        <button class="btn secondary" id="btn_clear_storage" style="background:#555; border-color:#888;">清理所有暫存</button>
       </div>
 
       <details class="collapsible" id="excludeBox">
@@ -245,7 +242,6 @@ details.collapsible summary::-webkit-details-marker{display:none}
       <p class="ai-mini" style="margin-top:4px">顯示：加權CAGR（≤3y 優先）、相關係數（加權平均正相關，越低越好，0~1 數值）。未提供或 0 的 ρ 不納入。</p>
     </div>
 
-    <!-- ✅ 匯出時就截這個容器（整體最佳化投組區塊） -->
     <div id="pro_export_target">
       <div id="pro_output"></div>
     </div>
@@ -357,7 +353,7 @@ $('btnRemoveRow').addEventListener('click',removeRow);
 $('btnClearRows').addEventListener('click',()=>{ [...fundTableBody.querySelectorAll('tr')].forEach(tr=>{ tr.querySelector('.name').value=''; tr.querySelectorAll('.fin').forEach(inp=>inp.value='');}); recomputePortfolio(); });
 
 /* ========= Excel 匯入/匯出 ========= */
-const HEADER_MAP={name:['基金名稱','name','基金','名稱'],r1:['近1年%','r1','1Y'],r3:['近3年累積%','r3','3Y'],r5:['近5年累積%','r5','5Y'],dy:['配息率%','dy','Yield%']};
+const HEADER_MAP={name:['基金名稱','r1','1Y'],r1:['近1年%','r1','1Y'],r3:['近3年累積%','r3','3Y'],r5:['近5年累積%','r5','5Y'],dy:['配息率%','dy','Yield%']};
 function pick(row,keys){for(const k of keys){if(Object.prototype.hasOwnProperty.call(row,k)&&row[k]!=='') return row[k];}return undefined;}
 function parsePercentCell(v){ if(v===''||v==null) return null; if(typeof v==='string'){const s=v.trim(); if (s.endsWith('%')){const n=parseFloat(s.slice(0,-1));return isNaN(n)?null:n;} const n=parseFloat(s); return isNaN(n)?null:n*100;} if(typeof v==='number') return v*100; return null; }
 function sheetToCatalog(ws){ const rows=XLSX.utils.sheet_to_json(ws,{defval:''}), out=[]; rows.forEach(r=>{const item={name:String(pick(r,HEADER_MAP.name)||'').trim(), r1:parsePercentCell(pick(r,HEADER_MAP.r1)), r3:parsePercentCell(pick(r,HEADER_MAP.r3)), r5:parsePercentCell(pick(r,HEADER_MAP.r5)), dy:parsePercentCell(pick(r,HEADER_MAP.dy))}; ['r1','r3','r5','dy'].forEach(k=>{if(item[k]!=null&&isFinite(item[k])) item[k]=Math.round(item[k]*100)/100;}); if(item.name) out.push(item);}); return out; }
@@ -411,25 +407,61 @@ function updateLTV(cap1,cap3,cap5){ const P=parseFloat($('principal').value)||0;
   const paint=(el,v)=>{ el.classList.remove('neg'); if(isFinite(v)&&v>80) el.classList.add('neg'); }; paint($('pf_ltv1'),l1); paint($('pf_ltv3'),l3); paint($('pf_ltv5'),l5); }
 
 /* ========= PNG 匯出（AI 分頁匯出整個最佳化區域，且隱藏明細） ========= */
+/* ========= PNG 匯出（AI 分頁匯出整個最佳化區域，且隱藏明細） ========= */
 async function exportPng(){
+  let target, filename, originalWrapOverflowY;
+  const active=document.querySelector('.tabpanel.active');
+  if(!active) return alert('找不到要匯出的區塊');
+
   try{
     document.body.classList.add('exporting');
-    await new Promise(r=>setTimeout(r,0));
-    const active=document.querySelector('.tabpanel.active');
-    if(!active) return alert('找不到要匯出的區塊');
-
-    let target=active, filename='MOMO試算';
+    
+    // 根據當前分頁確定截圖目標
     if(active.id==='panel-cash'){ target=$('cashExportArea'); filename='配息試算結果'; }
     else if(active.id==='panel-portfolio'){ target=$('panel-portfolio'); filename='投組分析'; }
     else { target=$('pro_export_target'); filename='AI最佳化投組'; }
+    
+    const wrapEl = document.querySelector('.wrap');
+    
+    // 步驟 1: 暫時移除包裹容器的溢出隱藏，確保內容完全展開
+    if(wrapEl){
+        originalWrapOverflowY = wrapEl.style.overflowY;
+        wrapEl.style.overflowY = 'visible';
+    }
 
-    const canvas=await html2canvas(target,{backgroundColor:'#0A1221',scale:window.devicePixelRatio||2,useCORS:true,allowTaint:true});
-    const a=document.createElement('a'); a.download=filename+'.png'; a.href=canvas.toDataURL('image/png'); a.click();
-  }catch(err){ alert('匯出 PNG 失敗：'+err.message); }
-  finally{ document.body.classList.remove('exporting'); }
+    // 等待瀏覽器重新佈局，讓 scrollHeight 計算正確
+    await new Promise(r=>setTimeout(r,100)); 
+
+    // 步驟 2: 計算目標元素的實際內容高度，並確保截圖捕捉到完整高度
+    // 使用 target.scrollHeight 來取得包含所有子元素後的完整高度
+    const targetHeight = target.scrollHeight + 20; // 額外增加 20px 邊距，確保截圖完整
+    
+    const canvas=await html2canvas(target,{
+        backgroundColor:'#0A1221',
+        scale:window.devicePixelRatio||2,
+        useCORS:true,
+        allowTaint:true,
+        // 關鍵：明確設定捕獲的高度
+        height: targetHeight 
+    });
+    
+    const a=document.createElement('a'); 
+    a.download=filename+'.png'; 
+    a.href=canvas.toDataURL('image/png'); 
+    a.click();
+    
+  }catch(err){ 
+    alert('匯出 PNG 失敗：'+err.message); 
+  }
+  finally{ 
+    // 清理：移除匯出狀態 class 並還原 overflow 樣式
+    document.body.classList.remove('exporting'); 
+    if(wrapEl){
+        wrapEl.style.overflowY = originalWrapOverflowY;
+    }
+  }
 }
 $('btnPng').addEventListener('click',exportPng);
-
 /* ========= 自動重算 ========= */
 function tryCalcAll(){ try{computeCashflow();}catch(e){} try{recomputePortfolio();}catch(e){} saveState(); proScheduleRun(); }
 document.addEventListener('input',(e)=>{ if(e.target.classList?.contains('control')) tryCalcAll(); });
@@ -470,6 +502,17 @@ function parseCorrMatrix(text){
   return {names:allNames, rho, covered:used};
 }
 function getRho(rhoMap,a,b){ if(a===b) return 1; const key=[a,b].sort().join('|'); const v=rhoMap?rhoMap[key]:undefined; if(!isFinite(v)||v===0||v===undefined) return null; return clamp(v,-1,1); }
+// 預計算相關係數矩陣 (效能優化新增)
+function buildCorrMatrix(items,rhoMap){ 
+    const names=items.map(f=>f.name);
+    const mat=names.map((ri,i)=>names.map((cj,j)=>{ 
+        if(i===j) return 1; 
+        const r=getRho(rhoMap,ri,cj); 
+        // 矩陣中只儲存正相關部分，負相關或 null 存 0 
+        return (r==null||r<=0)?0:r; 
+    })); 
+    return {names,mat,indexMap:names.reduce((m,n,i)=>(m[n]=i,m),{})}; 
+}
 function buildCorrSubmatrix(items,rhoMap){ const names=items.map(f=>f.name); const mat=names.map(ri=>names.map(cj=>{ if(ri===cj) return 1; const r=getRho(rhoMap,ri,cj); return (r==null)?null:r; })); return {names,mat}; }
 function corrStats(items,weights,rhoMap){
   const {names,mat}=buildCorrSubmatrix(items,rhoMap);
@@ -513,18 +556,35 @@ function renderCorrBlock(sug){
   </details>`;
 }
 
-/* ========= 目標函數 & 啟發式 ========= */
-function objective(items,w,rhoMap,lambda){
-  const lamEff=Math.max(Number(lambda)||0,0); // 可依需要調高
+/* ========= 目標函數 & 啟發式 (優化後) ========= */
+// 接受預先計算的矩陣 (corrMat) 進行更快的查表
+function objective(items,w,lambda,corrMat){
+  const lamEff=Math.max(Number(lambda)||0,0);
   let ret=0,risk=0;
+  const indexMap = corrMat.indexMap;
+  const mat = corrMat.mat;
+
   for(let i=0;i<items.length;i++){
-    const fi=items[i], wi=w[fi.name]||0; const ri=isFinite(fi.r3CAGR)?fi.r3CAGR:(isFinite(fi.r1)?fi.r1:0); ret+=wi*ri;
-    for(let j=i+1;j<items.length;j++){
-      const fj=items[j], wj=w[fj.name]||0; const rho=getRho(rhoMap,fi.name,fj.name); if(rho==null) continue; if(rho>0) risk+=wi*wj*rho;
+    const fi=items[i], wi=w[fi.name]||0; 
+    const ri=isFinite(fi.r3CAGR)?fi.r3CAGR:(isFinite(fi.r1)?fi.r1:0); 
+    ret+=wi*ri;
+    
+    // 透過索引直接存取矩陣，避免 getRho 內部的字串/對象操作 (效能優化)
+    const iIdx = indexMap[fi.name];
+    if(wi > 0 && isFinite(iIdx)){
+        for(let j=i+1;j<items.length;j++){
+            const fj=items[j], wj=w[fj.name]||0; 
+            const jIdx = indexMap[fj.name];
+            if(wj > 0 && isFinite(jIdx)){
+                 // mat[iIdx][jIdx] 已經是 max(0, rho)
+                risk += wi * wj * mat[iIdx][jIdx];
+            }
+        }
     }
   }
   return {ret,risk,obj:ret - lamEff*risk};
 }
+
 function pruneTinyWeights(items,weights,eps=0.005){ const act=items.filter(f=>(weights[f.name]||0)>=eps); if(act.length===0) return {items,weights}; const sum=act.reduce((s,f)=>s+(weights[f.name]||0),0); const w2={}; act.forEach(f=>w2[f.name]=(weights[f.name]||0)/(sum||1)); return {items:act,weights:w2}; }
 function weightHeuristic(items,minDy,wCap,rhoMap,lambda){
   const s=(f)=>Math.max(0,isFinite(f.r3CAGR)?f.r3CAGR:(isFinite(f.r1)?f.r1:0));
@@ -532,24 +592,67 @@ function weightHeuristic(items,minDy,wCap,rhoMap,lambda){
   function normalizeCap(){ let sum=0; items.forEach(f=>{ w[f.name]=Math.min(wCap,w[f.name]); sum+=w[f.name];}); if(sum<=0){const u=1/items.length; items.forEach(f=>w[f.name]=u);} else { items.forEach(f=>w[f.name]/=sum); } }
   normalizeCap();
   function weightedDy(W=w){ return items.reduce((x,f)=>x+(W[f.name]||0)*(f.dy||0),0); }
+  
+  // 效能優化：預先計算相關係數矩陣
+  const corrMat = buildCorrMatrix(items, rhoMap);
+
+  // 輔助函式: 取得單一基金的風險分數 (用於排序)
+  const getRhoRiskScore=(fund, currentWeights)=>{
+    let score = 0;
+    const iIdx = corrMat.indexMap[fund.name];
+    if(!isFinite(iIdx)) return 0;
+
+    for(const t of items){
+        if(fund.name === t.name) continue;
+        const jIdx = corrMat.indexMap[t.name];
+        if(!isFinite(jIdx)) continue;
+        // mat[iIdx][jIdx] 已經是 max(0, rho)
+        score += (currentWeights[t.name]||0) * corrMat.mat[iIdx][jIdx];
+    }
+    return score;
+  };
+  
+  // 呼叫目標函數的捷徑 (包含預計算的矩陣)
+  const obj = (weights) => objective(items, weights, lambda, corrMat);
+
   let guard=0;
   while(weightedDy()<minDy && guard++<200){
-    const donors=[...items].sort((a,b)=>{ const wa=w[a.name]||0, wb=w[b.name]||0; const ra=isFinite(a.r3CAGR)?a.r3CAGR:(isFinite(a.r1)?a.r1:0); const rb=isFinite(b.r3CAGR)?b.r3CAGR:(isFinite(b.r1)?b.r1:0);
-      const rhoA=items.reduce((s,t)=>{const r=getRho(rhoMap,a.name,t.name); return s + ((r!=null && r>0)? (w[t.name]||0)*r : 0);},0);
-      const rhoB=items.reduce((s,t)=>{const r=getRho(rhoMap,b.name,t.name); return s + ((r!=null && r>0)? (w[t.name]||0)*r : 0);},0);
+    // 每次迭代前重新計算風險分數
+    const rhoRiskScores = {}; items.forEach(f => rhoRiskScores[f.name] = getRhoRiskScore(f, w));
+
+    const donors=[...items].sort((a,b)=>{ 
+      const wa=w[a.name]||0, wb=w[b.name]||0; 
+      const ra=isFinite(a.r3CAGR)?a.r3CAGR:(isFinite(a.r1)?a.r1:0); 
+      const rb=isFinite(b.r3CAGR)?b.r3CAGR:(isFinite(b.r1)?b.r1:0); 
+      const rhoA = rhoRiskScores[a.name];
+      const rhoB = rhoRiskScores[b.name];
+      // 排序條件：Dy差 > Ret差 > Rho差 > Weight差
       return ((a.dy||0)-(b.dy||0)) || (ra-rb) || (rhoA-rhoB) || ((wa-wb));
     });
+    
     const receivers=[...items].filter(f=>(f.dy||0)>0).sort((a,b)=>(b.dy||0)-(a.dy||0));
     if(!receivers.length) break;
     const step=0.02; let moved=false;
-    for(const d of donors){ for(const r of receivers){ if(d.name===r.name) continue; const wd=w[d.name]||0, wr=w[r.name]||0; if(wd<=1e-6) continue;
+    
+    for(const d of donors){ 
+      for(const r of receivers){ 
+        if(d.name===r.name) continue; 
+        const wd=w[d.name]||0, wr=w[r.name]||0; if(wd<=1e-6) continue;
         const delta=Math.min(step,wd,Math.max(0,wCap-wr)); if(delta<=1e-6) continue;
+        
         const wTry={...w}; wTry[d.name]-=delta; wTry[r.name]+=delta;
-        const before=objective(items,w,rhoMap,lambda).obj; const after=objective(items,wTry,rhoMap,lambda).obj;
-        if(after>=before || weightedDy()<minDy){ w=wTry; moved=true; break; } }
-      if(moved) break; }
+        
+        // 呼叫 obj() 替代 objective(..., rhoMap, ...)
+        const before=obj(w).obj; 
+        const after=obj(wTry).obj;
+        
+        if(after>=before || weightedDy()<minDy){ w=wTry; moved=true; break; } 
+      }
+      if(moved) break; 
+    }
     if(!moved) break;
   }
+  
   function ok(W){ const dy=items.reduce((x,f)=>x+(W[f.name]||0)*(f.dy||0),0); return dy>=minDy && items.every(f=>(W[f.name]||0)<=wCap+1e-9); }
   let improved=true,it=0;
   while(improved && it++<200){
@@ -560,13 +663,18 @@ function weightHeuristic(items,minDy,wCap,rhoMap,lambda){
         for(const dir of [+1,-1]){
           const wa=w[a.name]||0, wb=w[b.name]||0; const delta= dir>0? Math.min(step,wb,Math.max(0,wCap-wa)) : Math.min(step,wa,Math.max(0,wCap-wb));
           if(delta<=1e-6) continue; const W={...w}; if(dir>0){W[a.name]+=delta; W[b.name]-=delta;} else {W[a.name]-=delta; W[b.name]+=delta;}
-          if(!ok(W)) continue; const before=objective(items,w,rhoMap,lambda).obj; const after=objective(items,W,rhoMap,lambda).obj; if(after>before+1e-9){ w=W; improved=true; }
+          if(!ok(W)) continue; 
+          // 呼叫 obj() 替代 objective(..., rhoMap, ...)
+          const before=obj(w).obj; 
+          const after=obj(W).obj; 
+          if(after>before+1e-9){ w=W; improved=true; }
         }
       }
     }
   }
   let sTot=items.reduce((x,f)=>x+(w[f.name]||0),0); if(sTot<=0){ const u=1/items.length; items.forEach(f=>w[f.name]=u);} else items.forEach(f=>w[f.name]/=sTot);
-  return w;
+  // 傳遞 corrMat 以便後續 localSwapImprove 使用
+  return {weights: w, corrMat: corrMat};
 }
 
 /* ========= 候選與強化 ========= */
@@ -592,8 +700,19 @@ function candidateSelection(universe,maxTotal,maxDiv,rhoMap,lambda,minDy){
 }
 function localSwapImprove(items,universe,maxTotal,maxDiv,rhoMap,lambda,minDy,wCap){
   let curItems=[...items];
-  function evalItems(arr){ const w=weightHeuristic(arr,minDy,wCap,rhoMap,lambda); const val=objective(arr,w,rhoMap,lambda); const dy=arr.reduce((x,f)=>x+(w[f.name]||0)*(f.dy||0),0); const dcnt=arr.filter(x=>x.isDividend).length; return {w,val,dy,dcnt}; }
-  let cur=evalItems(curItems); let improved=true, guard=0;
+  
+  // 建立輔助函式：計算權重和目標分數
+  function evalItems(arr){ 
+    const {weights: w, corrMat} = weightHeuristic(arr,minDy,wCap,rhoMap,lambda); 
+    const val=objective(arr,w,lambda,corrMat); 
+    const dy=arr.reduce((x,f)=>x+(w[f.name]||0)*(f.dy||0),0); 
+    const dcnt=arr.filter(x=>x.isDividend).length; 
+    return {w,val,dy,dcnt, corrMat}; 
+  }
+
+  let cur=evalItems(curItems); 
+  let improved=true, guard=0;
+  
   while(improved && guard++<50){
     improved=false;
     for(let i=0;i<curItems.length;i++){
@@ -601,16 +720,28 @@ function localSwapImprove(items,universe,maxTotal,maxDiv,rhoMap,lambda,minDy,wCa
         if(curItems.find(x=>x.name===cand.name)) continue;
         const next=[...curItems]; next[i]=cand;
         const dcnt=next.filter(x=>x.isDividend).length; if(dcnt>maxDiv) continue;
-        const test=evalItems(next); if(test.dy+1e-9<minDy) continue;
-        if(test.val.obj>cur.val.obj+1e-6){ curItems=next; cur=test; improved=true; break; }
+        
+        const test=evalItems(next); 
+        if(test.dy+1e-9<minDy) continue;
+        
+        if(test.val.obj>cur.val.obj+1e-6){ 
+          curItems=next; 
+          cur=test; 
+          improved=true; 
+          break; 
+        }
       }
       if(improved) break;
     }
   }
+  
   const pruned=pruneTinyWeights(curItems,cur.w,0.005);
-  const val2=objective(pruned.items,pruned.weights,rhoMap,Number(lambda)||0);
+  // 計算最終目標分數時，使用預計算的矩陣
+  const val2=objective(pruned.items,pruned.weights,Number(lambda)||0, cur.corrMat);
   const dy2=pruned.items.reduce((x,f)=>x+(pruned.weights[f.name]||0)*(f.dy||0),0);
+  // corrStats 仍需要原始 rhoMap 來取得負相關數據以顯示明細
   const stats2=corrStats(pruned.items,pruned.weights,rhoMap);
+  
   return {items:pruned.items,weights:pruned.weights,...val2,dy:dy2,avgPos:stats2.avgPosRho,_rhoMap:rhoMap};
 }
 
@@ -752,21 +883,83 @@ $('pro_exclude_clear').addEventListener('click',()=>{ $('pro_exclude_checks').qu
 $('pro_exclude_checks').addEventListener('change',()=>proScheduleRun());
 
 /* ========= 相關係數檔案 ========= */
+// 新增：更新相關係數燈號
+function updateCorrStatusIndicator(){
+    const indicator = $('corr_status_indicator');
+    if (!indicator) return;
+
+    const data = localStorage.getItem(LS_CORR_KEY);
+    // 檢查數據是否為 null, undefined, 或只包含空白字符
+    const hasData = (data && data.trim().length > 0);
+    
+    // 使用現有的 CSS 變數來控制顏色，保持風格一致
+    const deepColor = getComputedStyle(document.documentElement).getPropertyValue('--deep');
+    const posColor = getComputedStyle(document.documentElement).getPropertyValue('--pos');
+    const goldSoftColor = getComputedStyle(document.documentElement).getPropertyValue('--gold-soft');
+
+    if (hasData) {
+        indicator.textContent = '已載入';
+        indicator.style.background = posColor; // 綠色
+        indicator.style.borderColor = posColor;
+        indicator.style.color = deepColor;
+    } else {
+        indicator.textContent = '未載入';
+        indicator.style.background = '#283556'; // 中性深藍 (替代色)
+        indicator.style.borderColor = 'rgba(233,209,138,.35)';
+        indicator.style.color = goldSoftColor;
+    }
+}
+
 function importCorrFile(file){
   const ext=(file.name.split('.').pop()||'').toLowerCase(); const fr=new FileReader();
-  fr.onload=(evt)=>{ try{ let csvText=''; const ab=evt.target.result;
-    if(ext==='xlsx'||ext==='xls'){ const wb=XLSX.read(ab,{type:'array'}); const ws=wb.Sheets[wb.SheetNames[0]]; const arr=XLSX.utils.sheet_to_json(ws,{header:1,defval:''}); csvText=arr.map(r=>r.map(v=>String(v)).join('\t')).join('\n'); }
-    else { csvText=new TextDecoder('utf-8').decode(ab); }
-    localStorage.setItem(LS_CORR_KEY,csvText);
-    proScheduleRun();
-    alert('相關係數已匯入並儲存。');
-  }catch(e){ alert('匯入相關係數失敗：'+e.message); } };
+  fr.onload=(evt)=>{ 
+    try{ 
+        let csvText=''; 
+        const ab=evt.target.result;
+        
+        if(ext==='xlsx'||ext==='xls'){ 
+            const wb=XLSX.read(ab,{type:'array'}); 
+            const ws=wb.Sheets[wb.SheetNames[0]]; 
+            // 轉換為 CSV/TSV 格式，用於 parseCorrMatrix
+            const arr=XLSX.utils.sheet_to_json(ws,{header:1,defval:''}); 
+            csvText=arr.map(r=>r.map(v=>String(v)).join('\t')).join('\n'); 
+        } else { 
+            csvText=new TextDecoder('utf-8').decode(ab); 
+        }
+
+        // 修正：新增檢查，確保解析的內容不是空的
+        if (!csvText || csvText.trim().length === 0) {
+            throw new Error('匯入的檔案中沒有可用的相關係數數據。');
+        }
+
+        localStorage.setItem(LS_CORR_KEY,csvText);
+        updateCorrStatusIndicator(); // 更新燈號
+        proScheduleRun();
+        alert('相關係數已匯入並儲存。');
+        
+    }catch(err){ 
+        // 匯入失敗時，確認清空並更新燈號
+        localStorage.removeItem(LS_CORR_KEY);
+        updateCorrStatusIndicator();
+        alert('匯入相關係數失敗：'+err.message); 
+    }
+  }; 
   fr.readAsArrayBuffer(file);
 }
 $('pro_corr_import_btn').addEventListener('click',()=>$('pro_corr_file').click());
 $('pro_corr_file').addEventListener('change',(e)=>{const f=e.target.files&&e.target.files[0]; if(!f) return; importCorrFile(f); e.target.value='';});
 $('pro_corr_load_btn').addEventListener('click',()=>{ const txt=localStorage.getItem(LS_CORR_KEY)||''; alert(txt? '已載入儲存的相關係數資料（已自動使用）':'目前沒有已儲存的相關係數資料'); proScheduleRun(); });
-$('pro_corr_clear_btn').addEventListener('click',()=>{ localStorage.removeItem(LS_CORR_KEY); alert('已清空相關係數資料。'); proScheduleRun(); });
+$('pro_corr_clear_btn').addEventListener('click',()=>{ localStorage.removeItem(LS_CORR_KEY); alert('已清空相關係數資料。'); updateCorrStatusIndicator(); proScheduleRun(); }); // 清空後更新燈號
+
+// 新增：清理所有暫存的邏輯
+$('btn_clear_storage').addEventListener('click', () => {
+    if (confirm('確定要清除所有本地暫存數據嗎？包括所有輸入數據、常用清單和相關係數資料。')) {
+        localStorage.clear();
+        alert('所有暫存數據已清除。請重新整理頁面以使用預設值。');
+        window.location.reload(); // 重新載入頁面以反映預設狀態
+    }
+});
+
 
 /* ========= Pro 觸發 ========= */
 function runProNow(){
@@ -811,6 +1004,7 @@ function boot(){
   computeCashflow();
   recomputePortfolio();
   syncExcludeList();
+  updateCorrStatusIndicator(); // 啟動時更新燈號
   if(!loaded) saveState();
 }
 document.addEventListener('DOMContentLoaded',boot,{once:true});
