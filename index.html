@@ -270,7 +270,12 @@ const $=id=>document.getElementById(id);
 const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
 const twd=n=>new Intl.NumberFormat('zh-TW',{style:'currency',currency:'TWD',maximumFractionDigits:0}).format(n);
 const r2=v=>(v==null||!isFinite(v))?'':Number(v).toFixed(2);
-function cagrFromTotalPct(totalPct,years){const x=parseFloat(totalPct); if(!isFinite(x)) return NaN; const d=x/100; if(d<=-1||years<=0) return NaN; return Math.pow(1+d,1/years)-1;}
+
+// 優化：統一浮點數精度，避免比較時的微小誤差
+const FLOAT_PRECISION = 10;
+const roundToPrecision = v => Math.round(v * Math.pow(10, FLOAT_PRECISION)) / Math.pow(10, FLOAT_PRECISION);
+
+function cagrFromTotalPct(totalPct,years){const x=parseFloat(totalPct); if(!isFinite(x)) return NaN; const d=x/100; if(d<=-1||years<=0) return NaN; return roundToPrecision(Math.pow(1+d,1/years)-1);}
 
 /* ========= Tabs ========= */
 function setTab(which){
@@ -355,7 +360,27 @@ $('btnClearRows').addEventListener('click',()=>{ [...fundTableBody.querySelector
 /* ========= Excel 匯入/匯出 ========= */
 const HEADER_MAP={name:['基金名稱','r1','1Y'],r1:['近1年%','r1','1Y'],r3:['近3年累積%','r3','3Y'],r5:['近5年累積%','r5','5Y'],dy:['配息率%','dy','Yield%']};
 function pick(row,keys){for(const k of keys){if(Object.prototype.hasOwnProperty.call(row,k)&&row[k]!=='') return row[k];}return undefined;}
-function parsePercentCell(v){ if(v===''||v==null) return null; if(typeof v==='string'){const s=v.trim(); if (s.endsWith('%')){const n=parseFloat(s.slice(0,-1));return isNaN(n)?null:n;} const n=parseFloat(s); return isNaN(n)?null:n*100;} if(typeof v==='number') return v*100; return null; }
+// 優化：簡化百分比解析邏輯
+function parsePercentCell(v){ 
+    if(v===''||v==null) return null; 
+
+    // 處理數字類型（來自 XLSX 數字單元格，通常是小數）
+    if(typeof v==='number') return v*100; 
+
+    // 處理字串類型
+    if(typeof v==='string'){
+        const s=v.trim(); 
+        if (s.endsWith('%')){
+            // 情況 1: 結尾含 '%' (如 '8.00%') -> 移除 '%' 後直接使用數值
+            const n=parseFloat(s.slice(0,-1));
+            return isNaN(n)?null:n;
+        } 
+        // 情況 2: 純數字字串 (如 '0.08') -> 視為小數，乘 100
+        const n=parseFloat(s); 
+        return isNaN(n)?null:n*100; 
+    } 
+    return null; 
+}
 function sheetToCatalog(ws){ const rows=XLSX.utils.sheet_to_json(ws,{defval:''}), out=[]; rows.forEach(r=>{const item={name:String(pick(r,HEADER_MAP.name)||'').trim(), r1:parsePercentCell(pick(r,HEADER_MAP.r1)), r3:parsePercentCell(pick(r,HEADER_MAP.r3)), r5:parsePercentCell(pick(r,HEADER_MAP.r5)), dy:parsePercentCell(pick(r,HEADER_MAP.dy))}; ['r1','r3','r5','dy'].forEach(k=>{if(item[k]!=null&&isFinite(item[k])) item[k]=Math.round(item[k]*100)/100;}); if(item.name) out.push(item);}); return out; }
 $('btnImportXlsx').addEventListener('click',()=>$('importXlsx').click());
 $('importXlsx').addEventListener('change',(e)=>{ const f=e.target.files[0]; if(!f) return; const fr=new FileReader(); fr.onload=(evt)=>{
@@ -391,11 +416,36 @@ function applyPresetToRow(idx,presetIdx){ const p=(FUND_CATALOG||[])[presetIdx];
 function recomputePortfolio(){
   const rows=[...fundTableBody.querySelectorAll('tr')];
   const data=rows.map((tr,idx)=>({ name:(tr.querySelector('.name').value||`基金${'ABCDE'[idx]||idx+1}`), r1:parseFloat(tr.querySelector('.r1').value), r3:parseFloat(tr.querySelector('.r3').value), r5:parseFloat(tr.querySelector('.r5').value), dy:parseFloat(tr.querySelector('.dy').value), wt:parseFloat(tr.querySelector('.wt').value)}));
-  const valid=data.filter(f=>isFinite(f.wt)&&f.wt>0); const sumW=valid.reduce((s,f)=>s+f.wt,0);
+  const valid=data.filter(f=>isFinite(f.wt)&&f.wt>0); 
+  const sumW=valid.reduce((s,f)=>s+f.wt,0);
+  
+  // 優化：將 sumW 向上取整，保持數值穩定性
+  const roundedSumW = roundToPrecision(sumW);
+  
   const wtSumEl=$('wtSum'); if(wtSumEl){ wtSumEl.textContent=`${(sumW||0).toFixed(2)}%`; wtSumEl.style.color=(Math.abs((sumW||0)-100)<=2)?'var(--pos)':'var(--neg)'; wtSumEl.style.fontWeight='700'; }
-  const wAvg=fn=>{let acc=0,ws=0; valid.forEach(f=>{const v=fn(f); if(isFinite(v)){acc+=v*(f.wt/sumW); ws+=f.wt/sumW;}}); return ws>0?acc:NaN;};
-  const c1=wAvg(f=>isFinite(f.r1)?f.r1/100:NaN), c3=wAvg(f=>isFinite(f.r3)?cagrFromTotalPct(f.r3,3):NaN), c5=wAvg(f=>isFinite(f.r5)?cagrFromTotalPct(f.r5,5):NaN), dy=wAvg(f=>isFinite(f.dy)?f.dy/100:NaN);
-  const cap1=(isFinite(c1)&&isFinite(dy))?c1-dy:NaN, cap3=(isFinite(c3)&&isFinite(dy))?c3-dy:NaN, cap5=(isFinite(c5)&&isFinite(dy))?c5-dy:NaN;
+  
+  const wAvg=fn=>{
+      let acc=0,ws=0; 
+      valid.forEach(f=>{
+          const v=fn(f); 
+          if(isFinite(v)){
+              // 優化：中間計算結果向上取整
+              acc += roundToPrecision(v * (f.wt / roundedSumW)); 
+              ws += roundToPrecision(f.wt / roundedSumW);
+          }
+      }); 
+      return ws>0?acc:NaN;
+  };
+  
+  const c1=wAvg(f=>isFinite(f.r1)?f.r1/100:NaN);
+  const c3=wAvg(f=>isFinite(f.r3)?cagrFromTotalPct(f.r3,3):NaN); 
+  const c5=wAvg(f=>isFinite(f.r5)?cagrFromTotalPct(f.r5,5):NaN);
+  const dy=wAvg(f=>isFinite(f.dy)?f.dy/100:NaN);
+  
+  const cap1=(isFinite(c1)&&isFinite(dy))?roundToPrecision(c1-dy):NaN; 
+  const cap3=(isFinite(c3)&&isFinite(dy))?roundToPrecision(c3-dy):NaN; 
+  const cap5=(isFinite(c5)&&isFinite(dy))?roundToPrecision(c5-dy):NaN;
+  
   const set=(id,v)=>$(id).textContent=isFinite(v)?(v*100).toFixed(2)+'%':'—';
   set('pf_cagr1',c1); set('pf_cagr3',c3); set('pf_cagr5',c5); set('pf_div1',dy); set('pf_div3',dy); set('pf_div5',dy); set('pf_cap1',cap1); set('pf_cap3',cap3); set('pf_cap5',cap5);
   updateLTV(cap1,cap3,cap5); saveState();
@@ -570,7 +620,8 @@ function renderCorrBlock(sug){
 /* ========= 目標函數 & 啟發式 (優化後) ========= */
 // 接受預先計算的矩陣 (corrMat) 進行更快的查表
 function objective(items,w,lambda,corrMat){
-  const lamEff=Math.max(Number(lambda)||0,0);
+  // 優化：移除 Number() 呼叫
+  const lamEff=Math.max(lambda||0,0);
   let ret=0,risk=0;
   const indexMap = corrMat.indexMap;
   const mat = corrMat.mat;
