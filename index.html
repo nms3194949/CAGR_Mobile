@@ -416,9 +416,19 @@ async function exportPng(){
     document.body.classList.add('exporting');
     
     // 根據當前分頁確定截圖目標
-    if(active.id==='panel-cash'){ target=$('cashExportArea'); filename='配息試算結果'; }
-    else if(active.id==='panel-portfolio'){ target=$('panel-portfolio'); filename='投組分析'; }
-    else { target=$('pro_export_target'); filename='AI最佳化投組'; }
+    if(active.id==='panel-cash'){ 
+        target=$('cashExportArea'); 
+        filename='配息試算結果'; 
+    }
+    // 修正：投組分析只截取結果表格區域 #pfExportArea
+    else if(active.id==='panel-portfolio'){ 
+        target=$('pfExportArea'); 
+        filename='投組分析'; 
+    }
+    else { 
+        target=$('pro_export_target'); 
+        filename='AI最佳化投組'; 
+    }
     
     const wrapEl = document.querySelector('.wrap');
     
@@ -436,7 +446,7 @@ async function exportPng(){
     
     const canvas=await html2canvas(target,{
         backgroundColor:'#0A1221',
-        // 嘗試修正跨域和縮放問題 (使用固定 scale: 2)
+        // 嘗試修正跨域和縮放問題
         scale: 2, 
         useCORS: true, 
         allowTaint: true, 
